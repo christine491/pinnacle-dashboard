@@ -676,6 +676,22 @@ initSections();
 //  DASHBOARD INTEGRATION — load/save estimate
 // ══════════════════════════════════════
 var _estId = null;
+var DRAFT_KEY_PREFIX = 'pps_estimate_draft_v1';
+
+function draftKey(id){ return id ? (DRAFT_KEY_PREFIX + '_' + id) : (DRAFT_KEY_PREFIX + '_noid'); }
+function saveLocalDraft(){
+  try {
+    localStorage.setItem(draftKey(_estId), JSON.stringify({ ts: Date.now(), data: getEstimateSnapshot() }));
+  } catch(e) {}
+}
+function loadLocalDraft(id){
+  try {
+    var raw = localStorage.getItem(draftKey(id));
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    return (obj && obj.data) ? obj.data : obj;
+  } catch(e) { return null; }
+}
 
 function getEstimateSnapshot() {
   var sections = [];
@@ -697,6 +713,8 @@ function getEstimateSnapshot() {
 }
 
 function autoSave() {
+  // Always persist a local draft so refresh doesn't wipe the form.
+  saveLocalDraft();
   if (!_estId) return;
   var estimates = JSON.parse(localStorage.getItem("pps_estimates") || "[]");
   var est = estimates.find(function(e){ return e.id === _estId; });
@@ -735,55 +753,12 @@ function showSaveBanner() {
   if (banner) { banner.style.opacity = "1"; clearTimeout(window._saveTimer); window._saveTimer = setTimeout(function(){ banner.style.opacity = "0"; }, 1800); }
 }
 
-// ══════════════════════════════════════
-//  LOCAL DRAFT PERSISTENCE (reload-safe)
-//  - If you open this page directly (no estimate id yet), keep your work on refresh.
-// ══════════════════════════════════════
-var PPS_DRAFT_KEY = "pps_estimate_draft_v1";
-
-function saveDraft() {
-  try {
-    var payload = { ts: Date.now(), isInvoice: isInvoice, data: getEstimateSnapshot() };
-    localStorage.setItem(PPS_DRAFT_KEY, JSON.stringify(payload));
-  } catch(e) { /* ignore */ }
-}
-
-function loadDraftIfAny() {
-  try {
-    if (_estId) return; // a dashboard estimate will handle persistence
-    var raw = localStorage.getItem(PPS_DRAFT_KEY);
-    if (!raw) return;
-    var draft = JSON.parse(raw);
-    if (!draft || !draft.data) return;
-
-    // Restore fields + line items
-    loadEstimate({ data: draft.data });
-
-    // Restore doc type badge if draft was invoice
-    if (draft.isInvoice) {
-      isInvoice = true;
-      var badge = document.getElementById("docTypeBadge");
-      if (badge) { badge.textContent = "Invoice"; badge.style.background = "#27ae60"; }
-      var titleEl = document.querySelector(".nav-title");
-      if (titleEl) {
-        var addr = titleEl.textContent.replace(/^(Estimate|Invoice)\s*[—\-]\s*/i, '').trim();
-        titleEl.textContent = 'Invoice — ' + addr;
-      }
-    }
-  } catch(e) { /* ignore */ }
-}
-
-// Try restoring a draft immediately (only applies when not opened from dashboard)
-loadDraftIfAny();
-
-// Save on any input change (auto-save to estimate if loaded from dashboard; otherwise to local draft)
+// Auto-save on any input change
 document.addEventListener("input", function() {
   if (_estId) { autoSave(); showSaveBanner(); }
-  else { saveDraft(); showSaveBanner(); }
 });
 document.addEventListener("change", function() {
   if (_estId) { autoSave(); showSaveBanner(); }
-  else { saveDraft(); showSaveBanner(); }
 });
 
 function shareEstimate() {
@@ -847,6 +822,7 @@ function shareEstimate() {
         ests.push(newEst);
         localStorage.setItem('pps_estimates', JSON.stringify(ests));
         _estId = newEst.id;
+        try { saveLocalDraft(); } catch(e) {}
       }
     } catch(e) {
       console.warn('Could not load shared estimate:', e);
@@ -856,19 +832,40 @@ function shareEstimate() {
 
   var eid = params.get("est");
   if (!eid) eid = localStorage.getItem("pps_active_estimate");
-  if (!eid) return;
+  if (!eid) {
+    // No estimate id provided — restore last local draft (if any)
+    try {
+      var d0 = loadLocalDraft(null);
+      if (d0) setTimeout(function(){ loadEstimate({ data: d0 }); }, 20);
+    } catch(e) {}
+    return;
+  }
   _estId = eid;
   localStorage.removeItem("pps_active_estimate");
+
+  // Immediately restore a local draft for this estimate (prevents wipe on refresh/offline).
+  try {
+    var d1 = loadLocalDraft(eid);
+    if (d1) setTimeout(function(){ loadEstimate({ data: d1 }); }, 20);
+  } catch(e) {}
 
   // Try loading from Supabase first, fallback to localStorage
   (async function() {
     var sb = getSB();
-    var { data } = await sb.from('estimates').select('*').eq('id', eid).single();
+    var data = null;
+    try {
+      if (sb) {
+        var resp = await sb.from('estimates').select('*').eq('id', eid).single();
+        data = resp && resp.data ? resp.data : null;
+      }
+    } catch(e) {
+      console.warn('Supabase fetch failed (using local draft/localStorage):', e);
+    }
     var titleEl = document.querySelector(".nav-title");
     if (data) {
       if (titleEl) titleEl.textContent = data.name || "Estimate Tool";
       isInvoice = data.is_invoice || false;
-      setTimeout(function(){ loadEstimate({ data: data.data }); }, 50);
+      setTimeout(function(){ loadEstimate({ data: data.data }); saveLocalDraft(); }, 50);
       if (data.is_invoice) {
         setTimeout(function(){
           document.getElementById("docTypeBadge").textContent = "Invoice";
@@ -885,7 +882,7 @@ function shareEstimate() {
       var est = estimates.find(function(e){ return e.id === eid; });
       if (est) {
         if (titleEl) titleEl.textContent = est.name || "Estimate Tool";
-        setTimeout(function(){ loadEstimate(est); }, 50);
+        setTimeout(function(){ loadEstimate(est); saveLocalDraft(); }, 50);
         // Push to Supabase for first time
         await saveToSupabase("Estimate created");
       }
@@ -898,16 +895,12 @@ function shareEstimate() {
 // ══════════════════════════════════════
 //  SUPABASE CONFIG
 // ══════════════════════════════════════
-var SUPABASE_URL = window.PPS_SUPABASE_URL || "YOUR_SUPABASE_URL";
-var SUPABASE_KEY = window.PPS_SUPABASE_KEY || "YOUR_SUPABASE_ANON_KEY";
+var SUPABASE_URL = "https://qxjkdqfshgukleleqxdu.supabase.co";
+var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4amtkcWZzaGd1a2xlbGVxeGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0OTEyNDMsImV4cCI6MjA4NzA2NzI0M30.kQ1ieuYFuhRVzDmaWk8GJ2rtkxIGolzLQX34EYkMEyk";
 var _sb = null;
 var _realtimeChannel = null;
 
 function getSB() {
-  if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_KEY === "YOUR_SUPABASE_ANON_KEY") {
-    console.warn("Supabase is not configured. Set window.PPS_SUPABASE_URL and window.PPS_SUPABASE_KEY before loading this page.");
-    return null;
-  }
   if (!_sb) _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   return _sb;
 }
