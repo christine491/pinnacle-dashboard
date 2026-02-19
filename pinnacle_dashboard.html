@@ -852,6 +852,7 @@ function woRow(wo, extended) {
     + '</select>'
     + '</td>'
     + '</tr>';
+}
 
 function statusPill(s) {
   var map = { estimate:'pill-estimate', scheduled:'pill-scheduled', invoiced:'pill-invoiced', waiting:'pill-waiting', paid:'pill-paid' };
@@ -1103,7 +1104,7 @@ function renderEstimateCards() {
       + '<div class="estimate-row-actions">'
       + '<button class="est-btn open" onclick="openEstimate(\'' + est.id + '\')">Open</button>'
       + '<button class="est-btn approve" onclick="approveEstimate(\'' + est.id + '\')">Approve</button>'
-      + '<button class="est-btn del" onclick="deleteEstimate(\'' + est.id + '\'">✕</button>'
+      + '<button class="est-btn del" onclick="deleteEstimate(\'' + est.id + '\')">✕</button>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -1132,23 +1133,6 @@ function approveEstimate(id) {
   refreshDashboard();
 }
 
-  container.innerHTML = estimates.slice().reverse().map(function(est){
-    var total = '';
-    if (est.data && est.data.grandTotal) total = '<span style="font-size:13px;font-weight:600;color:var(--black);">$' + parseFloat(est.data.grandTotal).toFixed(2) + '</span>';
-    return '<div class="estimate-card">'
-      + '<div class="estimate-card-wo">' + (est.wo || 'No WO#') + '</div>'
-      + '<div class="estimate-card-name">' + est.name + '</div>'
-      + '<div class="estimate-card-addr">' + (est.address || '—') + '</div>'
-      + '<div class="estimate-card-footer">'
-      + '<span class="estimate-card-date">' + est.created + '</span>'
-      + '<div class="estimate-card-actions">'
-      + (total ? total + ' &nbsp;' : '')
-      + '<button class="estimate-card-btn" onclick="openEstimate(\'' + est.id + '\')">Edit</button>'
-      + '<button class="estimate-card-btn del" onclick="deleteEstimate(\'' + est.id + '\')">✕</button>'
-      + '</div></div>'
-      + '</div>';
-  }).join('');
-}
 
 // ══════════════════════════════════════
 //  BOOT
