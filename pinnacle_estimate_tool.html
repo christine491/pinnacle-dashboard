@@ -650,11 +650,7 @@ function autoSave() {
 
 function loadEstimate(est) {
   if (!est || !est.data) {
-    // Pre-fill from estimate metadata
-    if (est) {
-      document.getElementById("invoiceFor").value = est.address || "";
-      document.getElementById("workOrderNum").value = est.wo || "";
-    }
+    // No pre-fill — address is only used for the file name
     return;
   }
   var d = est.data;
