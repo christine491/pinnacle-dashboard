@@ -676,22 +676,6 @@ initSections();
 //  DASHBOARD INTEGRATION — load/save estimate
 // ══════════════════════════════════════
 var _estId = null;
-var DRAFT_KEY_PREFIX = 'pps_estimate_draft_v1';
-
-function draftKey(id){ return id ? (DRAFT_KEY_PREFIX + '_' + id) : (DRAFT_KEY_PREFIX + '_noid'); }
-function saveLocalDraft(){
-  try {
-    localStorage.setItem(draftKey(_estId), JSON.stringify({ ts: Date.now(), data: getEstimateSnapshot() }));
-  } catch(e) {}
-}
-function loadLocalDraft(id){
-  try {
-    var raw = localStorage.getItem(draftKey(id));
-    if (!raw) return null;
-    var obj = JSON.parse(raw);
-    return (obj && obj.data) ? obj.data : obj;
-  } catch(e) { return null; }
-}
 
 function getEstimateSnapshot() {
   var sections = [];
@@ -713,8 +697,6 @@ function getEstimateSnapshot() {
 }
 
 function autoSave() {
-  // Always persist a local draft so refresh doesn't wipe the form.
-  saveLocalDraft();
   if (!_estId) return;
   var estimates = JSON.parse(localStorage.getItem("pps_estimates") || "[]");
   var est = estimates.find(function(e){ return e.id === _estId; });
@@ -822,7 +804,6 @@ function shareEstimate() {
         ests.push(newEst);
         localStorage.setItem('pps_estimates', JSON.stringify(ests));
         _estId = newEst.id;
-        try { saveLocalDraft(); } catch(e) {}
       }
     } catch(e) {
       console.warn('Could not load shared estimate:', e);
@@ -832,40 +813,19 @@ function shareEstimate() {
 
   var eid = params.get("est");
   if (!eid) eid = localStorage.getItem("pps_active_estimate");
-  if (!eid) {
-    // No estimate id provided — restore last local draft (if any)
-    try {
-      var d0 = loadLocalDraft(null);
-      if (d0) setTimeout(function(){ loadEstimate({ data: d0 }); }, 20);
-    } catch(e) {}
-    return;
-  }
+  if (!eid) return;
   _estId = eid;
   localStorage.removeItem("pps_active_estimate");
-
-  // Immediately restore a local draft for this estimate (prevents wipe on refresh/offline).
-  try {
-    var d1 = loadLocalDraft(eid);
-    if (d1) setTimeout(function(){ loadEstimate({ data: d1 }); }, 20);
-  } catch(e) {}
 
   // Try loading from Supabase first, fallback to localStorage
   (async function() {
     var sb = getSB();
-    var data = null;
-    try {
-      if (sb) {
-        var resp = await sb.from('estimates').select('*').eq('id', eid).single();
-        data = resp && resp.data ? resp.data : null;
-      }
-    } catch(e) {
-      console.warn('Supabase fetch failed (using local draft/localStorage):', e);
-    }
+    var { data } = await sb.from('estimates').select('*').eq('id', eid).single();
     var titleEl = document.querySelector(".nav-title");
     if (data) {
       if (titleEl) titleEl.textContent = data.name || "Estimate Tool";
       isInvoice = data.is_invoice || false;
-      setTimeout(function(){ loadEstimate({ data: data.data }); saveLocalDraft(); }, 50);
+      setTimeout(function(){ loadEstimate({ data: data.data }); }, 50);
       if (data.is_invoice) {
         setTimeout(function(){
           document.getElementById("docTypeBadge").textContent = "Invoice";
@@ -882,7 +842,7 @@ function shareEstimate() {
       var est = estimates.find(function(e){ return e.id === eid; });
       if (est) {
         if (titleEl) titleEl.textContent = est.name || "Estimate Tool";
-        setTimeout(function(){ loadEstimate(est); saveLocalDraft(); }, 50);
+        setTimeout(function(){ loadEstimate(est); }, 50);
         // Push to Supabase for first time
         await saveToSupabase("Estimate created");
       }
