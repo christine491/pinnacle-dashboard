@@ -174,6 +174,7 @@
     <button class="btn btn-outline" onclick="resetForm()">&#128260; New Estimate</button>
     <button class="btn btn-primary" onclick="downloadPDF()">&#11015; Download PDF</button>
     <button class="btn btn-green" id="convertBtn" onclick="convertToInvoice()">&#9989; Convert to Invoice</button>
+    <button class="btn" id="revertBtn" onclick="revertToEstimate()" style="display:none;background:transparent;border:1px solid #e8e6e1;color:#666;font-size:11px;padding:6px 14px;">&#8635; Revert to Estimate</button>
   </div>
 </div>
 
@@ -442,11 +443,41 @@ function convertToInvoice() {
   document.getElementById("docTypeBadge").style.background = "#27ae60";
   document.getElementById("statusDot").className = "status-dot invoiced";
   document.getElementById("statusLabel").textContent = "Invoice — Job Completed";
-  document.getElementById("convertBtn").disabled = true;
-  document.getElementById("convertBtn").style.opacity = "0.4";
+  document.getElementById("convertBtn").style.display = "none";
+  document.getElementById("revertBtn").style.display = "";
   var ib = document.getElementById("infoBox");
   ib.innerHTML = "&#9989; <strong>Invoice Mode</strong> &mdash; Duration removed. Descriptions converted to past tense. Download your invoice PDF below.";
   ib.style.cssText = "background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:14px 20px;font-size:13px;color:#1b5e20;margin-bottom:20px;";
+  SECTIONS_DEF.forEach(function(s) { reRenderSection(s.id); });
+  calcTotals();
+}
+
+function revertToEstimate() {
+  if (!confirm("Revert back to Estimate mode?")) return;
+  isInvoice = false;
+  // Rename back: "Invoice — Address" → "Estimate — Address"
+  if (_estId) {
+    var estimates = JSON.parse(localStorage.getItem('pps_estimates') || '[]');
+    var est = estimates.find(function(e){ return e.id === _estId; });
+    if (est) {
+      est.name = est.name.replace(/^Invoice\s*[—-]\s*/i, 'Estimate — ');
+      localStorage.setItem('pps_estimates', JSON.stringify(estimates));
+    }
+  }
+  // Update nav title
+  var titleEl = document.querySelector(".nav-title");
+  if (titleEl) {
+    titleEl.textContent = titleEl.textContent.replace(/^Invoice\s*[—-]\s*/i, 'Estimate — ');
+  }
+  document.getElementById("docTypeBadge").textContent = "Estimate";
+  document.getElementById("docTypeBadge").style.background = "";
+  document.getElementById("statusDot").className = "status-dot";
+  document.getElementById("statusLabel").textContent = "Estimate — Pending Approval";
+  document.getElementById("convertBtn").style.display = "";
+  document.getElementById("revertBtn").style.display = "none";
+  var ib = document.getElementById("infoBox");
+  ib.innerHTML = "&#128203; <strong>Estimate Mode</strong> &mdash; Add line items with individual costs per section. Duration is set once per section. Section totals calculate automatically.<br><small style='opacity:0.8'>&#128161; Tip: Paste a bullet list into any description field and it auto-splits into rows!</small>";
+  ib.style.cssText = "background:#fff8e1;border:1px solid #ffe082;border-radius:4px;padding:14px 20px;font-size:13px;color:#7b5e00;margin-bottom:20px;";
   SECTIONS_DEF.forEach(function(s) { reRenderSection(s.id); });
   calcTotals();
 }
