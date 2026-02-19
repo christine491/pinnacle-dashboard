@@ -1073,9 +1073,9 @@ function createEstimate() {
 }
 
 function openEstimate(id) {
-  var est = estimates.find(function(e){ return e.id === id; });
-  if (!est) return;
+  if (!id) return;
   // Store the active estimate ID so the tool knows which to load/save
+  // even when the estimate isn't currently in local dashboard state.
   localStorage.setItem('pps_active_estimate', id);
   // Navigate to estimate tool
   window.location.href = 'pinnacle_estimate_tool.html?est=' + id;
