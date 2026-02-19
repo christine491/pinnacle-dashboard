@@ -421,79 +421,69 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
 /* ═══════════════════════════════
    ESTIMATE CARDS
 ═══════════════════════════════ */
-.estimate-card {
+.estimate-list {
   background: var(--white);
   border: 1px solid var(--gray-2);
   border-radius: 4px;
-  padding: 20px 22px;
-  position: relative;
   overflow: hidden;
-  cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  margin-bottom: 36px;
 }
-.estimate-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--amber);
+.estimate-row {
+  display: flex;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--gray-2);
+  gap: 16px;
+  transition: background 0.12s;
 }
-.estimate-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); border-color: var(--gray-3); }
-.estimate-card-name {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 17px;
-  font-weight: 500;
-  color: var(--black);
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.estimate-card-wo {
+.estimate-row:last-child { border-bottom: none; }
+.estimate-row:hover { background: #faf9f7; }
+.estimate-row-wo {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--gray-4);
-  margin-bottom: 4px;
+  width: 80px;
+  flex-shrink: 0;
 }
-.estimate-card-addr {
-  font-size: 12px;
-  color: var(--gray-5);
-  margin-bottom: 14px;
+.estimate-row-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--black);
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.estimate-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.estimate-card-date {
+.estimate-row-date {
   font-size: 11px;
   color: var(--gray-4);
+  flex-shrink: 0;
 }
-.estimate-card-actions {
+.estimate-row-actions {
   display: flex;
   gap: 6px;
+  flex-shrink: 0;
 }
-.estimate-card-btn {
-  background: var(--black);
-  color: white;
-  border: none;
+.est-btn {
+  font-family: 'Jost', sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
   padding: 5px 12px;
   border-radius: 2px;
   cursor: pointer;
+  border: none;
   transition: background 0.15s;
 }
-.estimate-card-btn:hover { background: var(--red); }
-.estimate-card-btn.del { background: transparent; color: var(--gray-4); border: 1px solid var(--gray-2); }
-.estimate-card-btn.del:hover { background: var(--red); color: white; border-color: var(--red); }
+.est-btn.open { background: transparent; color: var(--black); border: 1px solid var(--gray-2); }
+.est-btn.open:hover { background: var(--gray-1); }
+.est-btn.approve { background: #27ae60; color: white; }
+.est-btn.approve:hover { background: #219150; }
+.est-btn.del { background: transparent; color: var(--gray-4); border: 1px solid var(--gray-2); }
+.est-btn.del:hover { background: var(--red); color: white; border-color: var(--red); }
 </style>
 </head>
 <body>
@@ -568,8 +558,8 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
       <div class="section-title">Estimates <span id="estimateCount"></span></div>
       <button class="action-btn primary" onclick="openNewEstimate()">+ New Estimate</button>
     </div>
-    <div id="estimateCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:36px;">
-      <div class="empty-state" style="grid-column:1/-1;padding:32px 20px;"><div class="empty-icon">📄</div><p>No estimates yet. Click <strong>+ New Estimate</strong> to create one.</p></div>
+    <div id="estimateCards" class="estimate-list" style="margin-bottom:36px;">
+      <div class="empty-state" style="padding:32px 20px;"><div class="empty-icon">📄</div><p>No estimates yet. Click <strong>+ New Estimate</strong> to create one.</p></div>
     </div>
 
     <div class="section-header">
@@ -852,14 +842,16 @@ function woRow(wo, extended) {
     + extra
     + '<td>' + pill + '</td>'
     + '<td>' + (wo.amount ? '$'+parseFloat(wo.amount).toFixed(2) : '—') + '</td>'
-    + '<td><select onchange="changeStatus(\'' + wo.id + '\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid #e8e6e1;border-radius:3px;cursor:pointer;">'
+    + '<td style="display:flex;gap:6px;align-items:center;">'
+    + (wo.estId ? '<button class="est-btn open" style="font-family:Jost,sans-serif;font-size:11px;font-weight:600;padding:4px 10px;border-radius:2px;border:1px solid #ccc;background:transparent;cursor:pointer;" onclick="openEstimate(\'' + wo.estId + '\')" >Open</button>' : '')
+    + '<select onchange="changeStatus(\'' + wo.id + '\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid #e8e6e1;border-radius:3px;cursor:pointer;">'
     + '<option value="">Update</option>'
     + ['estimate','scheduled','invoiced','waiting','paid'].map(function(s){
         return '<option value="'+s+'"'+(wo.status===s?' selected':'')+'>'+statusLabel(s)+'</option>';
       }).join('')
-    + '</select></td>'
+    + '</select>'
+    + '</td>'
     + '</tr>';
-}
 
 function statusPill(s) {
   var map = { estimate:'pill-estimate', scheduled:'pill-scheduled', invoiced:'pill-invoiced', waiting:'pill-waiting', paid:'pill-paid' };
@@ -1100,9 +1092,46 @@ function renderEstimateCards() {
   if (!container) return;
   document.getElementById('estimateCount').textContent = estimates.length ? '(' + estimates.length + ')' : '';
   if (estimates.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;padding:32px 20px;"><div class="empty-icon">📄</div><p>No estimates yet. Click <strong>+ New Estimate</strong> to create one.</p></div>';
+    container.innerHTML = '<div class="empty-state" style="padding:32px 20px;"><div class="empty-icon">📄</div><p>No estimates yet. Click <strong>+ New Estimate</strong> to create one.</p></div>';
     return;
   }
+  container.innerHTML = estimates.slice().reverse().map(function(est){
+    return '<div class="estimate-row">'
+      + '<div class="estimate-row-wo">' + (est.wo || '—') + '</div>'
+      + '<div class="estimate-row-name">' + est.name + '</div>'
+      + '<div class="estimate-row-date">' + est.created + '</div>'
+      + '<div class="estimate-row-actions">'
+      + '<button class="est-btn open" onclick="openEstimate(\'' + est.id + '\')">Open</button>'
+      + '<button class="est-btn approve" onclick="approveEstimate(\'' + est.id + '\')">Approve</button>'
+      + '<button class="est-btn del" onclick="deleteEstimate(\'' + est.id + '\'">✕</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function approveEstimate(id) {
+  var est = estimates.find(function(e){ return e.id === id; });
+  if (!est) return;
+  if (!confirm('Approve "' + est.name + '" and move to Work Orders?')) return;
+  var wo = {
+    id:      'wo_' + Date.now(),
+    woNum:   est.wo || ('WO-' + String(workOrders.length + 1).padStart(3,'0')),
+    address: est.address || est.name,
+    desc:    est.name,
+    status:  'scheduled',
+    amount:  est.data && est.data.grandTotal ? est.data.grandTotal : '',
+    tech:    '',
+    date:    new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
+    estId:   est.id
+  };
+  workOrders.push(wo);
+  saveData();
+  estimates = estimates.filter(function(e){ return e.id !== id; });
+  saveEstimates();
+  renderEstimateCards();
+  refreshDashboard();
+}
+
   container.innerHTML = estimates.slice().reverse().map(function(est){
     var total = '';
     if (est.data && est.data.grandTotal) total = '<span style="font-size:13px;font-weight:600;color:var(--black);">$' + parseFloat(est.data.grandTotal).toFixed(2) + '</span>';
