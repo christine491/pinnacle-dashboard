@@ -706,12 +706,11 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
       <button class="modal-close" onclick="closeEstimateModal()">&#215;</button>
     </div>
     <div class="modal-body">
-      <label>Estimate Name</label>
-      <input type="text" id="ne_name" placeholder="e.g. Kitchen Repair - Unit 4">
-      <label>Work Order #</label>
-      <input type="text" id="ne_wo" placeholder="e.g. WO-001">
-      <label>Property / Client</label>
-      <input type="text" id="ne_address" placeholder="e.g. 123 Main St, Unit 4">
+      <label>Address</label>
+      <div style="display:flex;align-items:center;border:1px solid var(--gray-2);border-radius:3px;overflow:hidden;">
+        <span style="background:#f5f4f0;padding:9px 12px;font-family:'Jost',sans-serif;font-size:13px;color:#888;border-right:1px solid var(--gray-2);white-space:nowrap;">Estimate —</span>
+        <input type="text" id="ne_address" placeholder="123 Main St, Unit 4" style="border:none;border-radius:0;flex:1;outline:none;">
+      </div>
     </div>
     <div class="modal-footer">
       <button class="action-btn" onclick="closeEstimateModal()">Cancel</button>
@@ -1051,12 +1050,9 @@ document.getElementById('newEstimateModal').addEventListener('click', function(e
 //  ESTIMATES
 // ══════════════════════════════════════
 function openNewEstimate() {
-  var nextNum = 'WO-' + String(workOrders.length + estimates.length + 1).padStart(3,'0');
-  document.getElementById('ne_name').value = '';
-  document.getElementById('ne_wo').value = nextNum;
   document.getElementById('ne_address').value = '';
   document.getElementById('newEstimateModal').classList.add('open');
-  setTimeout(function(){ document.getElementById('ne_name').focus(); }, 100);
+  setTimeout(function(){ document.getElementById('ne_address').focus(); }, 100);
 }
 
 function closeEstimateModal() {
@@ -1064,14 +1060,13 @@ function closeEstimateModal() {
 }
 
 function createEstimate() {
-  var name    = document.getElementById('ne_name').value.trim();
-  var wo      = document.getElementById('ne_wo').value.trim();
   var address = document.getElementById('ne_address').value.trim();
-  if (!name) { document.getElementById('ne_name').focus(); return; }
+  if (!address) { document.getElementById('ne_address').focus(); return; }
+  var name = 'Estimate — ' + address;
   var est = {
     id:      'est_' + Date.now(),
     name:    name,
-    wo:      wo,
+    wo:      '',
     address: address,
     created: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
     data:    null
