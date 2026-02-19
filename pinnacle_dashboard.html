@@ -556,7 +556,10 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
     <!-- ESTIMATES SECTION -->
     <div class="section-header" style="margin-top:4px;">
       <div class="section-title">Estimates <span id="estimateCount"></span></div>
-      <button class="action-btn primary" onclick="openNewEstimate()">+ New Estimate</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="estimateSearch" type="text" placeholder="Search estimates..." oninput="renderEstimateCards()" style="font-family:Jost,sans-serif;font-size:12px;padding:6px 12px;border:1px solid #e8e6e1;border-radius:2px;width:180px;outline:none;">
+        <button class="action-btn primary" onclick="openNewEstimate()">+ New Estimate</button>
+      </div>
     </div>
     <div id="estimateCards" class="estimate-list" style="margin-bottom:36px;">
       <div class="empty-state" style="padding:32px 20px;"><div class="empty-icon">📄</div><p>No estimates yet. Click <strong>+ New Estimate</strong> to create one.</p></div>
@@ -564,22 +567,25 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
 
     <div class="section-header">
       <div class="section-title">Recent Work Orders <span id="recentCount"></span></div>
-      <button class="action-btn primary" onclick="openAddWO()">+ Add Work Order</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="woSearch" type="text" placeholder="Search work orders..." oninput="refreshDashboard()" style="font-family:Jost,sans-serif;font-size:12px;padding:6px 12px;border:1px solid #e8e6e1;border-radius:2px;width:180px;outline:none;">
+        <button class="action-btn primary" onclick="openAddWO()">+ Add Work Order</button>
+      </div>
     </div>
     <div class="table-card">
       <table class="wo-table">
         <thead>
           <tr>
             <th>WO #</th>
-            <th>Property / Client</th>
-            <th>Description</th>
+            <th>Project</th>
             <th>Status</th>
             <th>Amount</th>
+            <th></th>
             <th></th>
           </tr>
         </thead>
         <tbody id="recentWOBody">
-          <tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><p>No work orders yet. Click <strong>+ Add Work Order</strong> to get started.</p></div></td></tr>
+          <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📋</div><p>No work orders yet. Click <strong>+ Add Work Order</strong> to get started.</p></div></td></tr>
         </tbody>
       </table>
     </div>
@@ -613,6 +619,7 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
             <th>Date</th>
             <th>Status</th>
             <th>Amount</th>
+            <th></th>
             <th></th>
           </tr>
         </thead>
@@ -820,11 +827,19 @@ function refreshDashboard() {
   document.getElementById('stat-awaiting').textContent = awaiting;
   document.getElementById('woBadge').textContent = workOrders.length;
 
-  var recent = workOrders.slice(-5).reverse();
+  var woSearchVal = (document.getElementById('woSearch') ? document.getElementById('woSearch').value : '').toLowerCase();
+  var recent = workOrders.slice().reverse().filter(function(wo){
+    if (!woSearchVal) return true;
+    return (wo.woNum||'').toLowerCase().indexOf(woSearchVal) !== -1 || (wo.address||'').toLowerCase().indexOf(woSearchVal) !== -1;
+  }).slice(0,5);
   document.getElementById('recentCount').textContent = recent.length ? '(' + recent.length + ' recent)' : '';
   var tbody = document.getElementById('recentWOBody');
   if (workOrders.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📋</div><p>No work orders yet. Click <strong>+ Add Work Order</strong> to get started.</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📋</div><p>No work orders yet. Click <strong>+ Add Work Order</strong> to get started.</p></div></td></tr>';
+    return;
+  }
+  if (recent.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🔍</div><p>No work orders match your search.</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = recent.map(function(wo){ return woRow(wo, false); }).join('');
@@ -837,8 +852,7 @@ function woRow(wo, extended) {
     : '';
   return '<tr>'
     + '<td><span class="wo-num">' + (wo.woNum||'—') + '</span></td>'
-    + '<td><span class="wo-address">' + (wo.address||'—') + '</span></td>'
-    + '<td><span class="wo-desc">' + (wo.desc||'—') + '</span></td>'
+    + (extended ? '<td><span class="wo-address">' + (wo.address||'\u2014') + '</span></td><td><span class="wo-desc">' + (wo.desc||'\u2014') + '</span></td>' : '<td><span class="wo-address">' + (wo.address||'\u2014') + '</span></td>')
     + extra
     + '<td>' + pill + '</td>'
     + '<td>' + (wo.amount ? '$'+parseFloat(wo.amount).toFixed(2) : '—') + '</td>'
@@ -851,7 +865,7 @@ function woRow(wo, extended) {
       }).join('')
     + '</select>'
     + '</td>'
-    + '<td><button onclick="deleteWO(\'\' + wo.id + \'\')" style="background:transparent;border:1px solid #e8e6e1;color:#999;font-size:11px;padding:4px 10px;border-radius:2px;cursor:pointer;font-family:Jost,sans-serif;" onmouseover="this.style.background=\'#c0392b\';this.style.color=\'white\';this.style.borderColor=\'#c0392b\'" onmouseout="this.style.background=\'transparent\';this.style.color=\'#999\';this.style.borderColor=\'#e8e6e1\'">✕</button></td>'
+    + '<td><button onclick="deleteWO(\'' + wo.id + '\')" style="background:transparent;border:1px solid #e8e6e1;color:#999;font-size:11px;padding:4px 10px;border-radius:2px;cursor:pointer;font-family:Jost,sans-serif;">✕</button></td>'
     + '</tr>';
 }
 
@@ -1097,7 +1111,16 @@ function renderEstimateCards() {
     container.innerHTML = '<div class="empty-state" style="padding:32px 20px;"><div class="empty-icon">📄</div><p>No estimates yet. Click <strong>+ New Estimate</strong> to create one.</p></div>';
     return;
   }
-  container.innerHTML = estimates.slice().reverse().map(function(est){
+  var searchVal = (document.getElementById('estimateSearch') ? document.getElementById('estimateSearch').value : '').toLowerCase();
+  var filtered = estimates.slice().reverse().filter(function(est){
+    if (!searchVal) return true;
+    return (est.name||'').toLowerCase().includes(searchVal) || (est.wo||'').toLowerCase().includes(searchVal);
+  });
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding:32px 20px;"><div class="empty-icon">🔍</div><p>No estimates match your search.</p></div>';
+    return;
+  }
+  container.innerHTML = filtered.map(function(est){
     return '<div class="estimate-row">'
       + '<div class="estimate-row-wo">' + (est.wo || '—') + '</div>'
       + '<div class="estimate-row-name">' + est.name + '</div>'
@@ -1125,7 +1148,7 @@ function approveEstimate(id) {
   var wo = {
     id:      'wo_' + Date.now(),
     woNum:   est.wo || ('WO-' + String(workOrders.length + 1).padStart(3,'0')),
-    address: est.address || est.name,
+    address: est.address || est.name.replace(/^(Estimate|Invoice)\s*[—-]\s*/i, '').trim(),
     desc:    est.name,
     status:  'scheduled',
     amount:  est.data && est.data.grandTotal ? est.data.grandTotal : '',
@@ -1144,6 +1167,37 @@ function approveEstimate(id) {
 
 // ══════════════════════════════════════
 //  BOOT
+// ══════════════════════════════════════
+//  REAL-TIME STATUS SYNC (BroadcastChannel)
+//  Listens for status changes broadcast from the estimate tool
+// ══════════════════════════════════════
+(function() {
+  try {
+    var bc = new BroadcastChannel('pinnacle_pps');
+    bc.onmessage = function(e) {
+      var msg = e.data;
+      if (!msg || msg.type !== 'status_update' || !msg.estId) return;
+      // Find estimate in localStorage and update its invoice status
+      var ests = JSON.parse(localStorage.getItem('pps_estimates') || '[]');
+      var changed = false;
+      ests.forEach(function(est) {
+        if (est.id === msg.estId && est.is_invoice !== msg.isInvoice) {
+          est.is_invoice = msg.isInvoice;
+          if (msg.isInvoice && est.status !== 'invoiced') est.status = 'invoiced';
+          else if (!msg.isInvoice && est.status === 'invoiced') est.status = 'approved';
+          changed = true;
+        }
+      });
+      if (changed) {
+        localStorage.setItem('pps_estimates', JSON.stringify(ests));
+        estimates = ests; // update in-memory copy
+        refreshDashboard();
+        renderEstimateCards();
+      }
+    };
+  } catch(e) { /* BroadcastChannel not supported */ }
+})();
+
 // ══════════════════════════════════════
 setDate();
 refreshDashboard();
