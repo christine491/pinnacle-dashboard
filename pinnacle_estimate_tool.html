@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pinnacle Property Solutions - Estimate Tool</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Jost:wght@300;400;500;600&display=swap');
   :root { --red:#c0392b; --black:#1a1a1a; --gray:#6b6b6b; --light:#f7f6f4; --border:#d8d4cf; --white:#ffffff; }
@@ -173,8 +174,17 @@
   <div class="btn-row">
     <button class="btn btn-outline" onclick="resetForm()">&#128260; New Estimate</button>
     <button class="btn btn-primary" onclick="downloadPDF()">&#11015; Download PDF</button>
+    <button class="btn" onclick="shareEstimate()" style="background:var(--black);color:white;border:none;">&#128279; Share Link</button>
     <button class="btn btn-green" id="convertBtn" onclick="convertToInvoice()">&#9989; Convert to Invoice</button>
     <button class="btn" id="revertBtn" onclick="revertToEstimate()" style="display:none;background:transparent;border:1px solid #e8e6e1;color:#666;font-size:11px;padding:6px 14px;">&#8635; Revert to Estimate</button>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div class="container" style="margin-top:0;padding-top:0;">
+  <div style="background:var(--white);border:1px solid var(--border);border-radius:4px;padding:24px 28px;margin-bottom:40px;">
+    <div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#999;margin-bottom:16px;">Change History</div>
+    <div id="timelineList"><p style="color:#999;font-size:12px;padding:12px 0;">No history yet.</p></div>
   </div>
 </div>
 
@@ -451,6 +461,7 @@ function convertToInvoice() {
   ib.style.cssText = "background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:14px 20px;font-size:13px;color:#1b5e20;margin-bottom:20px;";
   SECTIONS_DEF.forEach(function(s) { reRenderSection(s.id); });
   calcTotals();
+  saveToSupabase("Converted to Invoice");
 }
 
 function revertToEstimate() {
@@ -482,6 +493,7 @@ function revertToEstimate() {
   ib.style.cssText = "background:#fff8e1;border:1px solid #ffe082;border-radius:4px;padding:14px 20px;font-size:13px;color:#7b5e00;margin-bottom:20px;";
   SECTIONS_DEF.forEach(function(s) { reRenderSection(s.id); });
   calcTotals();
+  saveToSupabase("Reverted to Estimate");
 }
 
 function resetForm() {
@@ -731,23 +743,226 @@ document.addEventListener("change", function() {
   if (_estId) { autoSave(); showSaveBanner(); }
 });
 
-// Boot: check URL for estimate ID
+function shareEstimate() {
+  // Build snapshot of current state
+  var snapshot = getEstimateSnapshot();
+  // Get name from nav title
+  var titleEl = document.querySelector(".nav-title");
+  var name = titleEl ? titleEl.textContent : "Estimate";
+  var payload = {
+    name: name,
+    isInvoice: isInvoice,
+    data: snapshot
+  };
+  try {
+    var json = JSON.stringify(payload);
+    var encoded = btoa(unescape(encodeURIComponent(json)));
+    var url = window.location.origin + window.location.pathname + '?shared=' + encoded;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(function() {
+        alert('\u2713 Share link copied to clipboard!\n\nAnyone with this link can open and edit a copy of this estimate.');
+      });
+    } else {
+      window.prompt('Copy this share link:', url);
+    }
+  } catch(e) {
+    alert('Could not generate share link: ' + e.message);
+  }
+}
+
+// Boot: check URL for estimate ID or shared data
 (function() {
   var params = new URLSearchParams(window.location.search);
+
+  // Handle shared link
+  var shared = params.get("shared");
+  if (shared) {
+    try {
+      var json = decodeURIComponent(escape(atob(shared)));
+      var payload = JSON.parse(json);
+      // Set nav title
+      var titleEl = document.querySelector(".nav-title");
+      if (titleEl && payload.name) titleEl.textContent = payload.name;
+      // Load data into form
+      if (payload.data) {
+        setTimeout(function() {
+          loadEstimate({ data: payload.data });
+          if (payload.isInvoice) convertToInvoice();
+        }, 50);
+      }
+      // Save as a new local estimate so they can keep editing
+      if (payload.name && payload.data) {
+        var newEst = {
+          id: 'est_' + Date.now(),
+          name: payload.name,
+          wo: '',
+          address: payload.name.replace(/^(Estimate|Invoice)\s*[\u2014-]\s*/i, '').trim(),
+          created: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
+          data: payload.data
+        };
+        var ests = JSON.parse(localStorage.getItem('pps_estimates') || '[]');
+        ests.push(newEst);
+        localStorage.setItem('pps_estimates', JSON.stringify(ests));
+        _estId = newEst.id;
+      }
+    } catch(e) {
+      console.warn('Could not load shared estimate:', e);
+    }
+    return;
+  }
+
   var eid = params.get("est");
   if (!eid) eid = localStorage.getItem("pps_active_estimate");
   if (!eid) return;
   _estId = eid;
-  var estimates = JSON.parse(localStorage.getItem("pps_estimates") || "[]");
-  var est = estimates.find(function(e){ return e.id === eid; });
-  if (est) {
-    // Update nav title to show estimate name
-    var titleEl = document.querySelector(".nav-title");
-    if (titleEl) titleEl.textContent = est.name || "Estimate Tool";
-    setTimeout(function(){ loadEstimate(est); }, 50);
-  }
   localStorage.removeItem("pps_active_estimate");
+
+  // Try loading from Supabase first, fallback to localStorage
+  (async function() {
+    var sb = getSB();
+    var { data } = await sb.from('estimates').select('*').eq('id', eid).single();
+    var titleEl = document.querySelector(".nav-title");
+    if (data) {
+      if (titleEl) titleEl.textContent = data.name || "Estimate Tool";
+      isInvoice = data.is_invoice || false;
+      setTimeout(function(){ loadEstimate({ data: data.data }); }, 50);
+      if (data.is_invoice) {
+        setTimeout(function(){
+          document.getElementById("docTypeBadge").textContent = "Invoice";
+          document.getElementById("docTypeBadge").style.background = "#27ae60";
+          document.getElementById("statusDot").className = "status-dot invoiced";
+          document.getElementById("statusLabel").textContent = "Invoice — Job Completed";
+          document.getElementById("convertBtn").style.display = "none";
+          document.getElementById("revertBtn").style.display = "";
+        }, 100);
+      }
+    } else {
+      // Fallback to localStorage
+      var estimates = JSON.parse(localStorage.getItem("pps_estimates") || "[]");
+      var est = estimates.find(function(e){ return e.id === eid; });
+      if (est) {
+        if (titleEl) titleEl.textContent = est.name || "Estimate Tool";
+        setTimeout(function(){ loadEstimate(est); }, 50);
+        // Push to Supabase for first time
+        await saveToSupabase("Estimate created");
+      }
+    }
+    subscribeRealtime();
+    renderTimeline();
+  })();
 })();
+
+// ══════════════════════════════════════
+//  SUPABASE CONFIG
+// ══════════════════════════════════════
+var SUPABASE_URL = "https://qxjkdqfshgukleleqxdu.supabase.co";
+var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4amtkcWZzaGd1a2xlbGVxeGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0OTEyNDMsImV4cCI6MjA4NzA2NzI0M30.kQ1ieuYFuhRVzDmaWk8GJ2rtkxIGolzLQX34EYkMEyk";
+var _sb = null;
+var _realtimeChannel = null;
+
+function getSB() {
+  if (!_sb) _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  return _sb;
+}
+
+// ══════════════════════════════════════
+//  SUPABASE SAVE
+// ══════════════════════════════════════
+async function saveToSupabase(note) {
+  if (!_estId) return;
+  var titleEl = document.querySelector(".nav-title");
+  var name = titleEl ? titleEl.textContent : "Estimate";
+  var snapshot = getEstimateSnapshot();
+  var payload = {
+    id: _estId,
+    name: name,
+    address: name.replace(/^(Estimate|Invoice)\s*[\u2014-]\s*/i, '').trim(),
+    is_invoice: isInvoice,
+    data: snapshot,
+    updated_at: new Date().toISOString()
+  };
+  var sb = getSB();
+  await sb.from('estimates').upsert(payload);
+  // Log history
+  if (note) {
+    await sb.from('estimate_history').insert({
+      estimate_id: _estId,
+      action: note,
+      note: name
+    });
+    renderTimeline();
+  }
+}
+
+// ══════════════════════════════════════
+//  REALTIME SUBSCRIPTION
+// ══════════════════════════════════════
+function subscribeRealtime() {
+  if (!_estId) return;
+  var sb = getSB();
+  if (_realtimeChannel) sb.removeChannel(_realtimeChannel);
+  _realtimeChannel = sb.channel('estimate-' + _estId)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'estimates',
+      filter: 'id=eq.' + _estId
+    }, function(payload) {
+      // Another user updated — reload silently
+      var d = payload.new;
+      if (d && d.data) {
+        loadEstimate({ data: d.data });
+        isInvoice = d.is_invoice;
+        var titleEl = document.querySelector(".nav-title");
+        if (titleEl && d.name) titleEl.textContent = d.name;
+        showSaveBanner();
+      }
+    })
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'estimate_history',
+      filter: 'estimate_id=eq.' + _estId
+    }, function() {
+      renderTimeline();
+    })
+    .subscribe();
+}
+
+// ══════════════════════════════════════
+//  TIMELINE
+// ══════════════════════════════════════
+async function renderTimeline() {
+  var container = document.getElementById('timelineList');
+  if (!container || !_estId) return;
+  var sb = getSB();
+  var { data } = await sb.from('estimate_history')
+    .select('*')
+    .eq('estimate_id', _estId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (!data || data.length === 0) {
+    container.innerHTML = '<p style="color:#999;font-size:12px;padding:12px 0;">No history yet.</p>';
+    return;
+  }
+  container.innerHTML = data.map(function(row) {
+    var d = new Date(row.created_at);
+    var timeStr = d.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) + ' ' + d.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f0eeea;">'
+      + '<div style="width:8px;height:8px;border-radius:50%;background:var(--red);margin-top:4px;flex-shrink:0;"></div>'
+      + '<div><div style="font-size:12px;font-weight:600;color:#333;">' + row.action + '</div>'
+      + '<div style="font-size:11px;color:#999;margin-top:2px;">' + timeStr + '</div></div>'
+      + '</div>';
+  }).join('');
+}
+
+// Override autoSave to also save to Supabase
+var _origAutoSave = autoSave;
+autoSave = function() {
+  _origAutoSave && _origAutoSave();
+  saveToSupabase(null); // silent save, no history log
+};
+
 </script>
 </body>
 </html>
