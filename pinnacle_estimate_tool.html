@@ -437,7 +437,8 @@ function convertToInvoice() {
   // Update nav title
   var titleEl = document.querySelector(".nav-title");
   if (titleEl) {
-    titleEl.textContent = titleEl.textContent.replace(/^Estimate\s*[—-]\s*/i, 'Invoice — ');
+    var addr = titleEl.textContent.replace(/^(Estimate|Invoice)\s*[—\-]\s*/i, '').trim();
+    titleEl.textContent = 'Invoice — ' + addr;
   }
   document.getElementById("docTypeBadge").textContent = "Invoice";
   document.getElementById("docTypeBadge").style.background = "#27ae60";
@@ -467,7 +468,8 @@ function revertToEstimate() {
   // Update nav title
   var titleEl = document.querySelector(".nav-title");
   if (titleEl) {
-    titleEl.textContent = titleEl.textContent.replace(/^Invoice\s*[—-]\s*/i, 'Estimate — ');
+    var addr = titleEl.textContent.replace(/^(Estimate|Invoice)\s*[—\-]\s*/i, '').trim();
+    titleEl.textContent = 'Estimate — ' + addr;
   }
   document.getElementById("docTypeBadge").textContent = "Estimate";
   document.getElementById("docTypeBadge").style.background = "";
