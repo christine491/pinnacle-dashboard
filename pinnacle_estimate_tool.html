@@ -172,6 +172,7 @@
   </div>
 
   <div class="btn-row">
+    <button class="btn btn-outline" onclick="resetForm()">&#128260; New Estimate</button>
     <button class="btn btn-primary" onclick="downloadPDF()">&#11015; Download PDF</button>
     <button class="btn" onclick="shareEstimate()" style="background:var(--black);color:white;border:none;">&#128279; Share Link</button>
     <button class="btn btn-green" id="convertBtn" onclick="convertToInvoice()">&#9989; Convert to Invoice</button>
@@ -743,72 +744,28 @@ document.addEventListener("change", function() {
 });
 
 function shareEstimate() {
-  // Build snapshot of current state
-  var snapshot = getEstimateSnapshot();
-  // Get name from nav title
-  var titleEl = document.querySelector(".nav-title");
-  var name = titleEl ? titleEl.textContent : "Estimate";
-  var payload = {
-    name: name,
-    isInvoice: isInvoice,
-    data: snapshot
-  };
-  try {
-    var json = JSON.stringify(payload);
-    var encoded = btoa(unescape(encodeURIComponent(json)));
-    var url = window.location.origin + window.location.pathname + '?shared=' + encoded;
+  if (!_estId) {
+    alert('Please save the estimate first before sharing.');
+    return;
+  }
+  // Save current state to Supabase first, then share by ID
+  saveToSupabase('Shared by owner').then(function() {
+    var url = window.location.origin + window.location.pathname + '?est=' + _estId;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url).then(function() {
-        alert('\u2713 Share link copied to clipboard!\n\nAnyone with this link can open and edit a copy of this estimate.');
+        alert('\u2713 Share link copied!\n\nAnyone with this link sees the LIVE estimate \u2014 edits from either side update in real time.');
       });
     } else {
       window.prompt('Copy this share link:', url);
     }
-  } catch(e) {
-    alert('Could not generate share link: ' + e.message);
-  }
+  });
 }
 
 // Boot: check URL for estimate ID or shared data
 (function() {
   var params = new URLSearchParams(window.location.search);
 
-  // Handle shared link
-  var shared = params.get("shared");
-  if (shared) {
-    try {
-      var json = decodeURIComponent(escape(atob(shared)));
-      var payload = JSON.parse(json);
-      // Set nav title
-      var titleEl = document.querySelector(".nav-title");
-      if (titleEl && payload.name) titleEl.textContent = payload.name;
-      // Load data into form
-      if (payload.data) {
-        setTimeout(function() {
-          loadEstimate({ data: payload.data });
-          if (payload.isInvoice) convertToInvoice();
-        }, 50);
-      }
-      // Save as a new local estimate so they can keep editing
-      if (payload.name && payload.data) {
-        var newEst = {
-          id: 'est_' + Date.now(),
-          name: payload.name,
-          wo: '',
-          address: payload.name.replace(/^(Estimate|Invoice)\s*[\u2014-]\s*/i, '').trim(),
-          created: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
-          data: payload.data
-        };
-        var ests = JSON.parse(localStorage.getItem('pps_estimates') || '[]');
-        ests.push(newEst);
-        localStorage.setItem('pps_estimates', JSON.stringify(ests));
-        _estId = newEst.id;
-      }
-    } catch(e) {
-      console.warn('Could not load shared estimate:', e);
-    }
-    return;
-  }
+  // No more ?shared= encoding — links now use ?est=ID for live sync
 
   var eid = params.get("est");
   if (!eid) eid = localStorage.getItem("pps_active_estimate");
