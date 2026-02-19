@@ -424,6 +424,20 @@ function convertToInvoice() {
   SECTIONS_DEF.forEach(function(s) {
     rowData[s.id].items.forEach(function(item) { item.desc = toPastTense(item.desc); });
   });
+  // Rename estimate: "Estimate — Address" → "Invoice — Address"
+  if (_estId) {
+    var estimates = JSON.parse(localStorage.getItem('pps_estimates') || '[]');
+    var est = estimates.find(function(e){ return e.id === _estId; });
+    if (est) {
+      est.name = est.name.replace(/^Estimate\s*[—-]\s*/i, 'Invoice — ');
+      localStorage.setItem('pps_estimates', JSON.stringify(estimates));
+    }
+  }
+  // Update nav title
+  var titleEl = document.querySelector(".nav-title");
+  if (titleEl) {
+    titleEl.textContent = titleEl.textContent.replace(/^Estimate\s*[—-]\s*/i, 'Invoice — ');
+  }
   document.getElementById("docTypeBadge").textContent = "Invoice";
   document.getElementById("docTypeBadge").style.background = "#27ae60";
   document.getElementById("statusDot").className = "status-dot invoiced";
