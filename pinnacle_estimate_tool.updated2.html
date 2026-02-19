@@ -735,12 +735,55 @@ function showSaveBanner() {
   if (banner) { banner.style.opacity = "1"; clearTimeout(window._saveTimer); window._saveTimer = setTimeout(function(){ banner.style.opacity = "0"; }, 1800); }
 }
 
-// Auto-save on any input change
+// ══════════════════════════════════════
+//  LOCAL DRAFT PERSISTENCE (reload-safe)
+//  - If you open this page directly (no estimate id yet), keep your work on refresh.
+// ══════════════════════════════════════
+var PPS_DRAFT_KEY = "pps_estimate_draft_v1";
+
+function saveDraft() {
+  try {
+    var payload = { ts: Date.now(), isInvoice: isInvoice, data: getEstimateSnapshot() };
+    localStorage.setItem(PPS_DRAFT_KEY, JSON.stringify(payload));
+  } catch(e) { /* ignore */ }
+}
+
+function loadDraftIfAny() {
+  try {
+    if (_estId) return; // a dashboard estimate will handle persistence
+    var raw = localStorage.getItem(PPS_DRAFT_KEY);
+    if (!raw) return;
+    var draft = JSON.parse(raw);
+    if (!draft || !draft.data) return;
+
+    // Restore fields + line items
+    loadEstimate({ data: draft.data });
+
+    // Restore doc type badge if draft was invoice
+    if (draft.isInvoice) {
+      isInvoice = true;
+      var badge = document.getElementById("docTypeBadge");
+      if (badge) { badge.textContent = "Invoice"; badge.style.background = "#27ae60"; }
+      var titleEl = document.querySelector(".nav-title");
+      if (titleEl) {
+        var addr = titleEl.textContent.replace(/^(Estimate|Invoice)\s*[—\-]\s*/i, '').trim();
+        titleEl.textContent = 'Invoice — ' + addr;
+      }
+    }
+  } catch(e) { /* ignore */ }
+}
+
+// Try restoring a draft immediately (only applies when not opened from dashboard)
+loadDraftIfAny();
+
+// Save on any input change (auto-save to estimate if loaded from dashboard; otherwise to local draft)
 document.addEventListener("input", function() {
   if (_estId) { autoSave(); showSaveBanner(); }
+  else { saveDraft(); showSaveBanner(); }
 });
 document.addEventListener("change", function() {
   if (_estId) { autoSave(); showSaveBanner(); }
+  else { saveDraft(); showSaveBanner(); }
 });
 
 function shareEstimate() {
@@ -855,12 +898,16 @@ function shareEstimate() {
 // ══════════════════════════════════════
 //  SUPABASE CONFIG
 // ══════════════════════════════════════
-var SUPABASE_URL = "https://qxjkdqfshgukleleqxdu.supabase.co";
-var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4amtkcWZzaGd1a2xlbGVxeGR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0OTEyNDMsImV4cCI6MjA4NzA2NzI0M30.kQ1ieuYFuhRVzDmaWk8GJ2rtkxIGolzLQX34EYkMEyk";
+var SUPABASE_URL = window.PPS_SUPABASE_URL || "YOUR_SUPABASE_URL";
+var SUPABASE_KEY = window.PPS_SUPABASE_KEY || "YOUR_SUPABASE_ANON_KEY";
 var _sb = null;
 var _realtimeChannel = null;
 
 function getSB() {
+  if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_KEY === "YOUR_SUPABASE_ANON_KEY") {
+    console.warn("Supabase is not configured. Set window.PPS_SUPABASE_URL and window.PPS_SUPABASE_KEY before loading this page.");
+    return null;
+  }
   if (!_sb) _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   return _sb;
 }
