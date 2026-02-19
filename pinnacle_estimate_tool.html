@@ -126,20 +126,15 @@
     </div>
   </div>
 
-  <!-- PHOTO ATTACHMENTS CARD -->
+  <!-- PHOTO LINKS CARD -->
   <div class="card">
     <div class="card-header">
-      <span>Photo Attachments</span>
-      <span style="font-size:11px;font-weight:400;opacity:0.7;">Before / After photos</span>
+      <span>Photo Links</span>
+      <span style="font-size:11px;font-weight:400;opacity:0.7;">Before / After — Google Drive, Dropbox, etc.</span>
     </div>
     <div class="card-body">
-      <div id="photoDropZone" onclick="document.getElementById('photoInput').click()" style="border:2px dashed var(--border);border-radius:4px;padding:24px;text-align:center;cursor:pointer;transition:border-color 0.2s;background:var(--light);">
-        <div style="font-size:28px;margin-bottom:8px;">📎</div>
-        <div style="font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--gray);">Click or drag photos here</div>
-        <div style="font-size:11px;color:#aaa;margin-top:4px;">JPG, PNG — before/after photos, damage documentation</div>
-      </div>
-      <input type="file" id="photoInput" accept="image/*" multiple style="display:none" onchange="handlePhotoUpload(event)">
-      <div id="photoGrid" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;"></div>
+      <div id="photoLinksContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button onclick="addPhotoLink()" style="margin-top:10px;background:none;border:1px dashed var(--border);border-radius:3px;padding:7px 16px;font-family:'Jost',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;color:var(--gray);cursor:pointer;text-transform:uppercase;width:100%;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--gray)'">+ Add Photo Link</button>
     </div>
   </div>
 
@@ -716,31 +711,24 @@ function downloadPDF() {
     y += 24;
   }
 
-  // ── PHOTO ATTACHMENTS ──
-  if (_photos && _photos.length > 0) {
+  // ── PHOTO LINKS ──
+  if (_photoLinks && _photoLinks.length > 0) {
     checkBreak(30);
     y += 10;
     doc.setDrawColor(180,180,180); doc.setLineWidth(0.5); doc.line(mL,y,pageW-mR,y); y+=12;
     doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(80,80,80);
-    doc.text("PHOTO ATTACHMENTS", mL, y); y += 14;
-    var imgW = 148, imgH = 110, imgGap = 12;
-    var perRow = 3;
-    var px = mL;
-    _photos.forEach(function(p, idx) {
-      if (!p.dataUrl) return;
-      checkBreak(imgH + 20);
-      try {
-        var ext = p.dataUrl.indexOf("image/png") > -1 ? "PNG" : "JPEG";
-        doc.addImage(p.dataUrl, ext, px, y, imgW, imgH);
-        if (p.label) {
-          doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(80,80,80);
-          doc.text(p.label, px + imgW/2, y + imgH + 9, {align:"center", maxWidth:imgW});
-        }
-      } catch(e){}
-      px += imgW + imgGap;
-      if ((idx + 1) % perRow === 0) { px = mL; y += imgH + 22; }
+    doc.text("PHOTO DOCUMENTATION", mL, y); y += 14;
+    _photoLinks.forEach(function(p) {
+      if (!p.url) return;
+      checkBreak(16);
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(40,40,40);
+      var labelText = p.label ? p.label + ': ' : '• ';
+      doc.text(labelText, mL + 4, y);
+      var labelW = doc.getTextWidth(labelText);
+      doc.setFont("helvetica","normal"); doc.setTextColor(192,57,43);
+      doc.textWithLink(p.url, mL + 4 + labelW, y, { url: p.url });
+      y += 16;
     });
-    if (_photos.length % perRow !== 0) y += imgH + 22;
   }
 
   // Use the estimate name from localStorage if available, else build from type + address
@@ -791,7 +779,7 @@ function getEstimateSnapshot() {
     dueDate: document.getElementById("dueDate").value,
     paymentTerms: document.getElementById("paymentTerms").value,
     approvedBy: document.getElementById("approvedBy").value,
-    photos: _photos.map(function(p){ return { name: p.name, dataUrl: p.dataUrl, label: p.label }; }),
+    photos: _photoLinks.map(function(p){ return { url: p.url, label: p.label }; }),
     sections: sections,
     grandTotal: grandCostEl ? grandCostEl.textContent.replace(/[$,]/g,'') : "0"
   };
@@ -818,7 +806,7 @@ function loadEstimate(est) {
   if (d.dueDate)      document.getElementById("dueDate").value = d.dueDate;
   if (d.paymentTerms) document.getElementById("paymentTerms").value = d.paymentTerms;
   if (d.approvedBy)   document.getElementById("approvedBy").value = d.approvedBy;
-  if (d.photos && Array.isArray(d.photos)) { _photos = d.photos.slice(); renderPhotoGrid(); }
+  if (d.photos && Array.isArray(d.photos)) { _photoLinks = d.photos.slice(); renderPhotoLinks(); }
   if (d.sections) {
     d.sections.forEach(function(sd) {
       var cb = document.getElementById("cb_" + sd.id);
@@ -848,54 +836,36 @@ document.addEventListener("change", function() {
 });
 
 // ══════════════════════════════════════
-//  PHOTO ATTACHMENTS
+//  PHOTO LINKS
 // ══════════════════════════════════════
-var _photos = []; // [{name, dataUrl, label}]
+var _photoLinks = []; // [{url, label}]
 
-function handlePhotoUpload(event) {
-  var files = Array.from(event.target.files);
-  files.forEach(function(file) {
-    if (!file.type.startsWith('image/')) return;
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      _photos.push({ name: file.name, dataUrl: e.target.result, label: '' });
-      renderPhotoGrid();
-      autoSave();
-    };
-    reader.readAsDataURL(file);
-  });
-  event.target.value = '';
+function addPhotoLink(url, label) {
+  _photoLinks.push({ url: url || '', label: label || '' });
+  renderPhotoLinks();
 }
 
-function renderPhotoGrid() {
-  var grid = document.getElementById('photoGrid');
-  if (!grid) return;
-  if (_photos.length === 0) { grid.innerHTML = ''; return; }
-  grid.innerHTML = _photos.map(function(p, i) {
-    return '<div style="position:relative;width:120px;">'
-      + '<img src="' + p.dataUrl + '" style="width:120px;height:90px;object-fit:cover;border-radius:3px;border:1px solid var(--border);">'
-      + '<input type="text" value="' + (p.label||'') + '" placeholder="Caption..." oninput="_photos[' + i + '].label=this.value;autoSave();" style="width:100%;font-size:10px;padding:3px 6px;border:1px solid var(--border);border-top:none;border-radius:0 0 3px 3px;font-family:Jost,sans-serif;">'
-      + '<button onclick="_photos.splice(' + i + ',1);renderPhotoGrid();autoSave();" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.55);color:white;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;">×</button>'
+function removePhotoLink(i) {
+  _photoLinks.splice(i, 1);
+  renderPhotoLinks();
+  autoSave();
+}
+
+function renderPhotoLinks() {
+  var container = document.getElementById('photoLinksContainer');
+  if (!container) return;
+  if (_photoLinks.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = _photoLinks.map(function(p, i) {
+    return '<div style="display:flex;gap:8px;align-items:center;">'
+      + '<input type="text" value="' + (p.label||'') + '" placeholder="Label (e.g. Before, After, Kitchen)" oninput="_photoLinks[' + i + '].label=this.value;autoSave();" style="width:140px;flex-shrink:0;padding:8px 10px;border:1px solid var(--border);border-radius:3px;font-family:Jost,sans-serif;font-size:12px;outline:none;">'
+      + '<input type="url" value="' + (p.url||'') + '" placeholder="https://drive.google.com/..." oninput="_photoLinks[' + i + '].url=this.value;autoSave();" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:3px;font-family:Jost,sans-serif;font-size:12px;outline:none;">'
+      + (p.url ? '<a href="' + p.url + '" target="_blank" style="color:var(--red);font-size:11px;white-space:nowrap;text-decoration:none;font-weight:600;">↗ Open</a>' : '')
+      + '<button onclick="removePhotoLink(' + i + ')" style="background:none;border:none;color:#bbb;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;" title="Remove">×</button>'
       + '</div>';
   }).join('');
 }
 
-// Drag & drop on photo zone
-document.addEventListener('DOMContentLoaded', function() {
-  var dz = document.getElementById('photoDropZone');
-  if (!dz) return;
-  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.style.borderColor='var(--black)'; });
-  dz.addEventListener('dragleave', function() { dz.style.borderColor='var(--border)'; });
-  dz.addEventListener('drop', function(e) {
-    e.preventDefault(); dz.style.borderColor='var(--border)';
-    var files = Array.from(e.dataTransfer.files).filter(function(f){ return f.type.startsWith('image/'); });
-    files.forEach(function(file) {
-      var reader = new FileReader();
-      reader.onload = function(ev) { _photos.push({ name: file.name, dataUrl: ev.target.result, label: '' }); renderPhotoGrid(); autoSave(); };
-      reader.readAsDataURL(file);
-    });
-  });
-});
+// Drag & drop removed (no longer needed)
 
 // ══════════════════════════════════════
 //  SEND TO CLIENT (mailto with share link)
@@ -915,6 +885,7 @@ function sendToClient() {
     + 'Please find your ' + docType.toLowerCase() + ' from Pinnacle Property Solutions below.\n\n'
     + 'View live ' + docType.toLowerCase() + ': ' + shareUrl + '\n\n'
     + (isInvoice ? 'Payment Terms: ' + (document.getElementById('paymentTerms').value || 'Due on Receipt') + '\n\n' : '')
+    + (_photoLinks && _photoLinks.length > 0 ? 'Photo Documentation:\n' + _photoLinks.map(function(p){ return (p.label ? p.label + ': ' : '• ') + p.url; }).join('\n') + '\n\n' : '')
     + 'If you have any questions, please don\'t hesitate to reach out.\n\n'
     + 'Thank you,\nPinnacle Property Solutions\nLicense #1120626'
   );
