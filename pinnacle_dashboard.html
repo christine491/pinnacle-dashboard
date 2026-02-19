@@ -417,6 +417,83 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
   .stats-grid { grid-template-columns: repeat(2,1fr); }
   .cal-wrap { grid-template-columns: 1fr; }
 }
+
+/* ═══════════════════════════════
+   ESTIMATE CARDS
+═══════════════════════════════ */
+.estimate-card {
+  background: var(--white);
+  border: 1px solid var(--gray-2);
+  border-radius: 4px;
+  padding: 20px 22px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.estimate-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--amber);
+}
+.estimate-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); border-color: var(--gray-3); }
+.estimate-card-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--black);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.estimate-card-wo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--gray-4);
+  margin-bottom: 4px;
+}
+.estimate-card-addr {
+  font-size: 12px;
+  color: var(--gray-5);
+  margin-bottom: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.estimate-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.estimate-card-date {
+  font-size: 11px;
+  color: var(--gray-4);
+}
+.estimate-card-actions {
+  display: flex;
+  gap: 6px;
+}
+.estimate-card-btn {
+  background: var(--black);
+  color: white;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 5px 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.estimate-card-btn:hover { background: var(--red); }
+.estimate-card-btn.del { background: transparent; color: var(--gray-4); border: 1px solid var(--gray-2); }
+.estimate-card-btn.del:hover { background: var(--red); color: white; border-color: var(--red); }
 </style>
 </head>
 <body>
@@ -431,14 +508,9 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
   <div class="nav-item active" onclick="showPage('dashboard', this)">
     <span class="nav-icon">▦</span> Dashboard
   </div>
-  <div class="nav-item" onclick="showPage('estimate', this)">
+  <div class="nav-item" onclick="openNewEstimate()">
     <span class="nav-icon">✎</span> New Estimate
   </div>
-  <a href="pinnacle_estimate_tool.html" style="text-decoration:none;">
-    <div class="nav-item">
-      <span class="nav-icon">⬡</span> Estimate Tool ↗
-    </div>
-  </a>
 
   <div class="sidebar-section-label">Manage</div>
   <div class="nav-item" onclick="showPage('workorders', this)">
@@ -491,6 +563,15 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
       </div>
     </div>
 
+    <!-- ESTIMATES SECTION -->
+    <div class="section-header" style="margin-top:4px;">
+      <div class="section-title">Estimates <span id="estimateCount"></span></div>
+      <button class="action-btn primary" onclick="openNewEstimate()">+ New Estimate</button>
+    </div>
+    <div id="estimateCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:36px;">
+      <div class="empty-state" style="grid-column:1/-1;padding:32px 20px;"><div class="empty-icon">📄</div><p>No estimates yet. Click <strong>+ New Estimate</strong> to create one.</p></div>
+    </div>
+
     <div class="section-header">
       <div class="section-title">Recent Work Orders <span id="recentCount"></span></div>
       <button class="action-btn primary" onclick="openAddWO()">+ Add Work Order</button>
@@ -514,12 +595,8 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
     </div>
   </div>
 
-  <!-- ── PAGE: ESTIMATE TOOL ── -->
-  <div class="page" id="page-estimate">
-    <div class="tool-frame-wrap">
-      <iframe id="estimateFrame" src="pinnacle_estimate_tool.html"></iframe>
-    </div>
-  </div>
+  <!-- ── PAGE: ESTIMATE TOOL ── (removed - estimates open via modal + redirect) -->
+  <div class="page" id="page-estimate" style="display:none!important;"></div>
 
   <!-- ── PAGE: WORK ORDERS ── -->
   <div class="page" id="page-workorders">
@@ -621,6 +698,28 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
 
 </div><!-- end .main -->
 
+<!-- NEW ESTIMATE MODAL -->
+<div class="modal-overlay" id="newEstimateModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>New Estimate</h3>
+      <button class="modal-close" onclick="closeEstimateModal()">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <label>Estimate Name</label>
+      <input type="text" id="ne_name" placeholder="e.g. Kitchen Repair - Unit 4">
+      <label>Work Order #</label>
+      <input type="text" id="ne_wo" placeholder="e.g. WO-001">
+      <label>Property / Client</label>
+      <input type="text" id="ne_address" placeholder="e.g. 123 Main St, Unit 4">
+    </div>
+    <div class="modal-footer">
+      <button class="action-btn" onclick="closeEstimateModal()">Cancel</button>
+      <button class="action-btn primary" onclick="createEstimate()">Create Estimate</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD WORK ORDER MODAL -->
 <div class="modal-overlay" id="addWOModal">
   <div class="modal">
@@ -662,6 +761,11 @@ body { font-family: 'Jost', sans-serif; background: var(--white); color: var(--b
 //  DATA STORE
 // ══════════════════════════════════════
 var workOrders = JSON.parse(localStorage.getItem('pps_workorders') || '[]');
+var estimates  = JSON.parse(localStorage.getItem('pps_estimates')  || '[]');
+
+function saveEstimates() {
+  localStorage.setItem('pps_estimates', JSON.stringify(estimates));
+}
 var currentWOFilter = 'all';
 var currentHistoryFilter = 'all';
 var calYear, calMonth;
@@ -675,7 +779,6 @@ function saveData() {
 // ══════════════════════════════════════
 var pageTitles = {
   dashboard: 'Dashboard',
-  estimate:  'New Estimate',
   workorders:'Work Orders',
   history:   'History',
   calendar:  'Schedule'
@@ -940,12 +1043,95 @@ function saveWO() {
 document.getElementById('addWOModal').addEventListener('click', function(e){
   if (e.target === this) closeModal();
 });
+document.getElementById('newEstimateModal').addEventListener('click', function(e){
+  if (e.target === this) closeEstimateModal();
+});
+
+// ══════════════════════════════════════
+//  ESTIMATES
+// ══════════════════════════════════════
+function openNewEstimate() {
+  var nextNum = 'WO-' + String(workOrders.length + estimates.length + 1).padStart(3,'0');
+  document.getElementById('ne_name').value = '';
+  document.getElementById('ne_wo').value = nextNum;
+  document.getElementById('ne_address').value = '';
+  document.getElementById('newEstimateModal').classList.add('open');
+  setTimeout(function(){ document.getElementById('ne_name').focus(); }, 100);
+}
+
+function closeEstimateModal() {
+  document.getElementById('newEstimateModal').classList.remove('open');
+}
+
+function createEstimate() {
+  var name    = document.getElementById('ne_name').value.trim();
+  var wo      = document.getElementById('ne_wo').value.trim();
+  var address = document.getElementById('ne_address').value.trim();
+  if (!name) { document.getElementById('ne_name').focus(); return; }
+  var est = {
+    id:      'est_' + Date.now(),
+    name:    name,
+    wo:      wo,
+    address: address,
+    created: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
+    data:    null
+  };
+  estimates.push(est);
+  saveEstimates();
+  closeEstimateModal();
+  renderEstimateCards();
+  // Open estimate tool with this estimate pre-loaded
+  openEstimate(est.id);
+}
+
+function openEstimate(id) {
+  var est = estimates.find(function(e){ return e.id === id; });
+  if (!est) return;
+  // Store the active estimate ID so the tool knows which to load/save
+  localStorage.setItem('pps_active_estimate', id);
+  // Navigate to estimate tool
+  window.location.href = 'pinnacle_estimate_tool.html?est=' + id;
+}
+
+function deleteEstimate(id) {
+  if (!confirm('Delete this estimate?')) return;
+  estimates = estimates.filter(function(e){ return e.id !== id; });
+  saveEstimates();
+  renderEstimateCards();
+}
+
+function renderEstimateCards() {
+  var container = document.getElementById('estimateCards');
+  if (!container) return;
+  document.getElementById('estimateCount').textContent = estimates.length ? '(' + estimates.length + ')' : '';
+  if (estimates.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="grid-column:1/-1;padding:32px 20px;"><div class="empty-icon">📄</div><p>No estimates yet. Click <strong>+ New Estimate</strong> to create one.</p></div>';
+    return;
+  }
+  container.innerHTML = estimates.slice().reverse().map(function(est){
+    var total = '';
+    if (est.data && est.data.grandTotal) total = '<span style="font-size:13px;font-weight:600;color:var(--black);">$' + parseFloat(est.data.grandTotal).toFixed(2) + '</span>';
+    return '<div class="estimate-card">'
+      + '<div class="estimate-card-wo">' + (est.wo || 'No WO#') + '</div>'
+      + '<div class="estimate-card-name">' + est.name + '</div>'
+      + '<div class="estimate-card-addr">' + (est.address || '—') + '</div>'
+      + '<div class="estimate-card-footer">'
+      + '<span class="estimate-card-date">' + est.created + '</span>'
+      + '<div class="estimate-card-actions">'
+      + (total ? total + ' &nbsp;' : '')
+      + '<button class="estimate-card-btn" onclick="openEstimate(\'' + est.id + '\')">Edit</button>'
+      + '<button class="estimate-card-btn del" onclick="deleteEstimate(\'' + est.id + '\')">✕</button>'
+      + '</div></div>'
+      + '</div>';
+  }).join('');
+}
 
 // ══════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════
 setDate();
 refreshDashboard();
+renderEstimateCards();
 </script>
 </body>
 </html>
