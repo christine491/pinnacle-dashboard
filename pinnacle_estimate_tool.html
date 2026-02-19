@@ -600,7 +600,19 @@ function downloadPDF() {
   if (!isInvoice) doc.text(grandDur.toFixed(1)+" hrs", colDur, y+13, {align:"right"});
   doc.text(formatMoney(grandCost), colCost, y+13, {align:"right"});
 
-  var fname = (isInvoice?"Invoice":"Estimate")+"_"+(document.getElementById("workOrderNum").value||"NEW")+".pdf";
+  // Use the estimate name from localStorage if available, else build from type + address
+  var fname;
+  if (_estId) {
+    var ests = JSON.parse(localStorage.getItem('pps_estimates') || '[]');
+    var _est = ests.find(function(e){ return e.id === _estId; });
+    if (_est && _est.name) {
+      fname = _est.name.replace(/[\/:*?"<>|]/g, '-') + '.pdf';
+    }
+  }
+  if (!fname) {
+    var addr = document.getElementById('invoiceFor').value || document.getElementById('workOrderNum').value || 'Document';
+    fname = (isInvoice ? 'Invoice' : 'Estimate') + ' - ' + addr.replace(/[\/:*?"<>|]/g, '-') + '.pdf';
+  }
   doc.save(fname);
 }
 
