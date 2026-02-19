@@ -865,7 +865,10 @@ function woRow(wo, extended) {
       }).join('')
     + '</select>'
     + '</td>'
+<<<<<<< HEAD
     + '<td><button onclick="deleteWO(\'' + wo.id + '\')" style="background:transparent;border:1px solid #e8e6e1;color:#999;font-size:11px;padding:4px 10px;border-radius:2px;cursor:pointer;font-family:Jost,sans-serif;">✕</button></td>'
+=======
+>>>>>>> parent of 931a038 (push)
     + '</tr>';
 }
 
@@ -1088,9 +1091,9 @@ function createEstimate() {
 }
 
 function openEstimate(id) {
-  var est = estimates.find(function(e){ return e.id === id; });
-  if (!est) return;
+  if (!id) return;
   // Store the active estimate ID so the tool knows which to load/save
+  // even when the estimate isn't currently in local dashboard state.
   localStorage.setItem('pps_active_estimate', id);
   // Navigate to estimate tool
   window.location.href = 'pinnacle_estimate_tool.html?est=' + id;
@@ -1132,13 +1135,6 @@ function renderEstimateCards() {
       + '</div>'
       + '</div>';
   }).join('');
-}
-
-function deleteWO(id) {
-  if (!confirm('Delete this work order?')) return;
-  workOrders = workOrders.filter(function(w){ return w.id !== id; });
-  saveData();
-  refreshDashboard();
 }
 
 function approveEstimate(id) {

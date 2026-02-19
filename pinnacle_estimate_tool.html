@@ -71,7 +71,7 @@
   .grand-row td { background:var(--black); color:white; font-weight:700; font-size:14px; padding:12px !important; border-bottom:none !important; }
 
   /* BUTTONS */
-  .btn-row { display:flex; gap:12px; justify-content:flex-end; margin-top:28px; flex-wrap:wrap; position:relative; z-index:10; }
+  .btn-row { display:flex; gap:12px; justify-content:flex-end; margin-top:28px; flex-wrap:wrap; }
   .btn { font-family:"Jost",sans-serif; font-size:12px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; padding:12px 28px; border:none; border-radius:3px; cursor:pointer; transition:all 0.2s; }
   .btn-primary { background:var(--black); color:white; } .btn-primary:hover { background:#333; }
   .btn-outline { background:transparent; border:1px solid var(--black); color:var(--black); } .btn-outline:hover { background:var(--black); color:white; }
@@ -130,11 +130,11 @@
   <div class="card">
     <div class="card-header">
       <span>Photo Links</span>
-      <span style="font-size:11px;font-weight:400;opacity:0.7;">Google Drive, Dropbox, iCloud, etc.</span>
+      <span style="font-size:11px;font-weight:400;opacity:0.7;">Before / After — Google Drive, Dropbox, etc.</span>
     </div>
-    <div class="card-body" style="padding:20px 28px;">
-      <div id="photoLinksContainer"></div>
-      <button type="button" onclick="window.addPhotoLink()" style="margin-top:8px;background:none;border:1px dashed #ccc;border-radius:3px;padding:8px 20px;font-family:'Jost',sans-serif;font-size:12px;font-weight:600;letter-spacing:1px;color:#999;cursor:pointer;text-transform:uppercase;">+ Add Link</button>
+    <div class="card-body">
+      <div id="photoLinksContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button onclick="addPhotoLink()" style="margin-top:10px;background:none;border:1px dashed var(--border);border-radius:3px;padding:7px 16px;font-family:'Jost',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;color:var(--gray);cursor:pointer;text-transform:uppercase;width:100%;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--gray)'">+ Add Photo Link</button>
     </div>
   </div>
 
@@ -810,12 +810,7 @@ function loadEstimate(est) {
   if (d.sections) {
     d.sections.forEach(function(sd) {
       var cb = document.getElementById("cb_" + sd.id);
-      var block = document.getElementById("block_" + sd.id);
       if (cb) cb.checked = sd.enabled;
-      if (block) {
-        if (sd.enabled) block.classList.add("active");
-        else block.classList.remove("active");
-      }
       if (rowData[sd.id]) {
         rowData[sd.id].dur = sd.dur;
         rowData[sd.id].items = JSON.parse(JSON.stringify(sd.items));
@@ -849,38 +844,25 @@ function addPhotoLink(url, label) {
   _photoLinks.push({ url: url || '', label: label || '' });
   renderPhotoLinks();
 }
-window.addPhotoLink = addPhotoLink;
 
 function removePhotoLink(i) {
   _photoLinks.splice(i, 1);
   renderPhotoLinks();
   autoSave();
 }
-window.removePhotoLink = removePhotoLink;
 
 function renderPhotoLinks() {
   var container = document.getElementById('photoLinksContainer');
   if (!container) return;
-  var html = '';
-  for (var i = 0; i < _photoLinks.length; i++) {
-    var p = _photoLinks[i];
-    html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">';
-    html += '<input type="text" data-idx="' + i + '" data-field="label" value="' + (p.label||'').replace(/"/g,'&quot;') + '" placeholder="Label (e.g. Before, After)" style="width:160px;flex-shrink:0;padding:8px 10px;border:1px solid #e0ddd8;border-radius:3px;font-family:Jost,sans-serif;font-size:13px;outline:none;">';
-    html += '<input type="text" data-idx="' + i + '" data-field="url" value="' + (p.url||'').replace(/"/g,'&quot;') + '" placeholder="https://drive.google.com/..." style="flex:1;padding:8px 10px;border:1px solid #e0ddd8;border-radius:3px;font-family:Jost,sans-serif;font-size:13px;outline:none;">';
-    html += '<span onclick="removePhotoLink(' + i + ')" style="cursor:pointer;color:#bbb;font-size:20px;line-height:1;padding:0 4px;user-select:none;">×</span>';
-    html += '</div>';
-  }
-  container.innerHTML = html;
-  // Attach input listeners
-  var inputs = container.querySelectorAll('input');
-  for (var j = 0; j < inputs.length; j++) {
-    inputs[j].addEventListener('input', function() {
-      var idx = parseInt(this.getAttribute('data-idx'));
-      var field = this.getAttribute('data-field');
-      _photoLinks[idx][field] = this.value;
-      autoSave();
-    });
-  }
+  if (_photoLinks.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = _photoLinks.map(function(p, i) {
+    return '<div style="display:flex;gap:8px;align-items:center;">'
+      + '<input type="text" value="' + (p.label||'') + '" placeholder="Label (e.g. Before, After, Kitchen)" oninput="_photoLinks[' + i + '].label=this.value;autoSave();" style="width:140px;flex-shrink:0;padding:8px 10px;border:1px solid var(--border);border-radius:3px;font-family:Jost,sans-serif;font-size:12px;outline:none;">'
+      + '<input type="url" value="' + (p.url||'') + '" placeholder="https://drive.google.com/..." oninput="_photoLinks[' + i + '].url=this.value;autoSave();" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:3px;font-family:Jost,sans-serif;font-size:12px;outline:none;">'
+      + (p.url ? '<a href="' + p.url + '" target="_blank" style="color:var(--red);font-size:11px;white-space:nowrap;text-decoration:none;font-weight:600;">↗ Open</a>' : '')
+      + '<button onclick="removePhotoLink(' + i + ')" style="background:none;border:none;color:#bbb;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;" title="Remove">×</button>'
+      + '</div>';
+  }).join('');
 }
 
 // Drag & drop removed (no longer needed)
